@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>MMA Phaser Fight</title>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+
+<style>
+body{
+  margin:0;
+  background:#000;
+  overflow:hidden;
+  font-family:Arial;
+}
+#game{
+  width:100vw;
+  height:100vh;
+}
+</style>
+</head>
+
+<body>
+<div id="game"></div>
+
+<script>
+const config = {
+  type: Phaser.AUTO,
+  parent: "game",
+  width: window.innerWidth,
+  height: window.innerHeight,
+  backgroundColor: "#101010",
+  physics: {
+    default: "arcade",
+    arcade: {
+      gravity: { y: 900 },
+      debug: false
+    }
+  },
+  scene: {
+    preload,
+    create,
+    update
+  }
+};
+
+let player, enemy;
+let cursors;
+let keys;
+
+let playerHP = 100;
+let enemyHP = 100;
+let playerStamina = 100;
+
+let playerHPText, enemyHPText, staminaText, infoText;
+let canAttack = true;
+let grounded = false;
+
+new Phaser.Game(config);
+
+function preload(){}
+
+function create(){
+  const w = this.scale.width;
+  const h = this.scale.height;
+
+  this.add.rectangle(w/2, h-60, w, 120, 0x333333);
+  this.add.rectangle(w/2, h-120, w, 6, 0x666666);
+
+  this.add.text(w/2, 25, "MMA PHASER FIGHT", {
+    fontSize:"24px",
+    color:"#ffd700",
+    fontStyle:"bold"
+  }).setOrigin(0.5);
+
+  player = createFighter(this, 120, h-220, 0xff4444);
+  enemy = createFighter(this, w-120, h-220, 0x3377ff);
+
+  this.physics.add.existing(player.container);
+  this.physics.add.existing(enemy.container);
+
+  player.container.body.setCollideWorldBounds(true);
+  enemy.container.body.setCollideWorldBounds(true);
+
+  const ground = this.add.rectangle(w/2, h-60, w, 120, 0x333333);
+  this.physics.add.existing(ground, true);
+
+  this.physics.add.collider(player.container, ground);
+  this.physics.add.collider(enemy.container, ground);
+
+  cursors = this.input.keyboard.createCursorKeys();
+
+  keys = this.input.keyboard.addKeys({
+    punch: Phaser.Input.Keyboard.KeyCodes.J,
+    kick: Phaser.Input.Keyboard.KeyCodes.K,
+    takedown: Phaser.Input.Keyboard.KeyCodes.U,
+    submission: Phaser.Input.Keyboard.KeyCodes.I,
+    block: Phaser.Input.Keyboard.KeyCodes.L
+  });
+
+  playerHPText = this.add.text(15, 65, "HP: 100", {fontSize:"18px", color:"#00ff00"});
+  enemyHPText = this.add.text(w-120, 65, "HP: 100", {fontSize:"18px", color:"#00ff00"});
+  staminaText = this.add.text(15, 90, "ST: 100", {fontSize:"18px", color:"#00ccff"});
+
+  infoText = this.add.text(w/2, 120, "← → ходить | J удар | K нога | U тейкдаун | I сабмишен | L блок", {
+    fontSize:"14px",
+    color:"#ffffff",
+    align:"center",
+    wordWrap:{width:w-30}
+  }).setOrigin(0.5);
+
+  this.time.addEvent({
+    delay: 1000,
+    loop: true,
+    callback: () => {
+      if(playerStamina < 100){
+        playerStamina += grounded ? 2 : 6;
+        if(playerStamina > 100) playerStamina = 100;
+      }
+      enemyAI(this);
+      updateUI();
+    }
+  });
+}
+
+function update(){
+  if(playerHP <= 0 || enemyHP <= 0) return;
+
+  player.container.body.setVelocityX(0);
+
+  if(cursors.left.isDown){
+    player.container.body.setVelocityX(-220);
+    player.container.scaleX = -1;
+  }
+
+  if(cursors.right.isDown){
+    player.container.body.setVelocityX(220);
+    player.container.scaleX = 1;
+  }
+
+  if(Phaser.Input.Keyboard.JustDown(keys.punch)){
+    attack(this, "punch");
+  }
+
+  if(Phaser.Input.Keyboard.JustDown(keys.kick)){
+    attack(this, "kick");
+  }
+
+  if(Phaser.Input.Keyboard.JustDown(keys.takedown)){
+    attack(this, "takedown");
+  }
+
+  if(Phaser.Input.Keyboard.JustDown(keys.submission)){
+    attack(this, "submission");
+  }
+
+  if(Phaser.Input.Keyboard.JustDown(keys.block)){
+    block(this);
+  }
+}
+
+function createFighter(scene, x, y, shortsColor){
+  const container = scene.add.container(x, y);
+
+  const body = scene.add.rectangle(0, 0, 60, 100, 0xc28b5c);
+  const head = scene.add.circle(0, -70, 25, 0xf1c27d);
+  const shorts = scene.add.rectangle(0, 35, 52, 28, shortsColor);
+  const arm1 = scene.add.rectangle(-42, -10, 16, 65, 0xc28b5c);
+  const arm2 = scene.add.rectangle(42, -10, 16, 65, 0xc28b5c);
